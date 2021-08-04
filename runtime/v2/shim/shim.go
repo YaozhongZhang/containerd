@@ -43,6 +43,7 @@ type Client struct {
 	service shimapi.TaskService
 	context context.Context
 	signals chan os.Signal
+	cancel  context.CancelFunc
 }
 
 // Publisher for events
@@ -205,7 +206,7 @@ func run(id string, initFunc Init, config Config) error {
 			"pid":       os.Getpid(),
 			"namespace": namespaceFlag,
 		})
-		go handleSignals(ctx, logger, signals)
+		go handleSignals(ctx, logger, signals, func() {})
 		response, err := service.Cleanup(ctx)
 		if err != nil {
 			return err
@@ -233,7 +234,7 @@ func run(id string, initFunc Init, config Config) error {
 				return err
 			}
 		}
-		client := NewShimClient(ctx, service, signals)
+		client := NewShimClient(ctx, service, signals, cancel)
 		if err := client.Serve(); err != nil {
 			if err != context.Canceled {
 				return err
@@ -249,11 +250,12 @@ func run(id string, initFunc Init, config Config) error {
 }
 
 // NewShimClient creates a new shim server client
-func NewShimClient(ctx context.Context, svc shimapi.TaskService, signals chan os.Signal) *Client {
+func NewShimClient(ctx context.Context, svc shimapi.TaskService, signals chan os.Signal, cancel context.CancelFunc) *Client {
 	s := &Client{
 		service: svc,
 		context: ctx,
 		signals: signals,
+		cancel:  cancel,
 	}
 	return s
 }
@@ -288,7 +290,7 @@ func (s *Client) Serve() error {
 			dumpStacks(logger)
 		}
 	}()
-	return handleSignals(s.context, logger, s.signals)
+	return handleSignals(s.context, logger, s.signals, s.cancel)
 }
 
 // serve serves the ttrpc API over a unix socket at the provided path

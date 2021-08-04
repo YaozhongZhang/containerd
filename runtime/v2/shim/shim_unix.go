@@ -70,7 +70,7 @@ func serveListener(path string) (net.Listener, error) {
 	return l, nil
 }
 
-func handleSignals(ctx context.Context, logger *logrus.Entry, signals chan os.Signal) error {
+func handleSignals(ctx context.Context, logger *logrus.Entry, signals chan os.Signal,cancel context.CancelFunc) error {
 	logger.Info("starting signal loop")
 
 	for {
@@ -83,6 +83,8 @@ func handleSignals(ctx context.Context, logger *logrus.Entry, signals chan os.Si
 				if err := reaper.Reap(); err != nil {
 					logger.WithError(err).Error("reap exit status")
 				}
+			case unix.SIGTERM, unix.SIGINT:
+				cancel()
 			case unix.SIGPIPE:
 			}
 		}
